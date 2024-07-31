@@ -111,10 +111,10 @@ let op_not builder = op_xor builder True
 type tenary_op = t -> node -> node -> node -> node
 
 let if_then_else builder cond then_ else_ =
-  let op_not, op_and, op_or = (op_not builder, op_and builder, op_or builder) in
-  let l = op_and cond then_ in
-  let r = op_and (op_not cond) else_ in
-  op_or l r
+  let ( ! ), ( && ), ( || ) = (op_not builder, op_and builder, op_or builder) in
+  let l = cond && then_ in
+  let r = !cond && else_ in
+  l || r
 
 (* compute f[g/x] substitute the occurance of x with g *)
 let subs builder f x g =
@@ -127,6 +127,18 @@ let subs builder f x g =
       let low, high = (get_node low, get_node high) in
       let br = if x = y then g else var y in
       ite br high low
+
+(* quantifiers *)
+
+(* \forall x \in {T,F} f \equiv f[T/x] \land f[F/x] *)
+let forall builder x f =
+  let ( && ), partial_eval = (op_and builder, subs builder f x) in
+  partial_eval True && partial_eval False
+
+(* \exists x \in {T,F} f \equiv f[T/x] \lor f[F/x] *)
+let exists builder x f =
+  let ( || ), partial_eval = (op_or builder, subs builder f x) in
+  partial_eval True || partial_eval False
 
 (* satisfiability *)
 let unsat = ( = ) False

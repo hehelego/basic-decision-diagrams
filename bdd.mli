@@ -28,6 +28,10 @@ val if_then_else : tenary_op
 (* variable substitution *)
 val subs : t -> node -> var_id -> node -> node
 
+(* quantifications over boolean variables *)
+val forall : t -> var_id -> node -> node
+val exists : t -> var_id -> node -> node
+
 (* SAT solving *)
 val unsat : node -> bool
 val sat : node -> bool
