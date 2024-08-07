@@ -17,6 +17,12 @@ val singleton : t -> var_id -> node
 val from_list : t -> var_id list -> node
 (** the set family { s } *)
 
+val insert : t -> var_id -> node -> node
+(** [insert x f] is the set family {s+{x}: s in f} *)
+
+val remove : t -> var_id -> node -> node
+(** [remove x f] is the set family {s-{x}: s in f} *)
+
 (* set operations *)
 
 val filter1 : t -> var_id -> node -> node

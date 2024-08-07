@@ -183,6 +183,49 @@ let sym_diff builder lhs rhs =
   let lr, rl = (lhs -- rhs, rhs -- lhs) in
   lr ++ rl
 
+(* TODO: find efficient implementation *)
+let insert builder x =
+  let get_node, singleton, make_partition, union =
+    (get_node builder, singleton builder, make_partition builder, union builder)
+  in
+  let rec add node =
+    match node with
+    | Bottom -> Bottom
+    | Top -> singleton x
+    | Partition (y, low, high) ->
+        if x > y then
+          let low', high' = (get_node low, get_node high) in
+          let low', high' = (add low', add high') in
+          make_partition y low' high'
+        else if x < y then
+          let low', high' = (get_node low, get_node high) in
+          make_partition x low' high'
+        else
+          (* x = y *)
+          let low', high' = (get_node low, get_node high) in
+          let low' = add low' in
+          let node = make_partition x Bottom high' in
+          union low' node
+  in
+  add
+
+let remove builder x =
+  let get_node, make_partition = (get_node builder, make_partition builder) in
+  let rec rem node =
+    match node with
+    | Bottom -> Bottom
+    | Top -> Top
+    | Partition (y, low, high) ->
+        if x > y then node
+        else if x < y then
+          let low', high' = (get_node low, get_node high) in
+          let low', high' = (rem low', rem high') in
+          make_partition y low' high'
+        else (* x = y *)
+          get_node low
+  in
+  rem
+
 let cached_recursion base_case combine builder =
   let cache = Array.make (Dynarray.length builder.store) None in
   let get_id, get_node = (get_id builder, get_node builder) in
