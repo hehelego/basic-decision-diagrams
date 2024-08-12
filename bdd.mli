@@ -35,3 +35,6 @@ val exists : t -> var_id -> node -> node
 (* SAT solving *)
 val unsat : node -> bool
 val sat : node -> bool
+
+(* BDD to truth table *)
+val truth_table : t -> var_id -> node -> bool array
