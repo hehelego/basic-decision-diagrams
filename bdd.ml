@@ -29,6 +29,24 @@ let add_node builder node =
   let _ = get_id builder node in
   ()
 
+(* helper function *)
+let top_var = function True | False -> None | Branch (v, _, _) -> Some v
+
+let min_opt = function
+  | None, None -> None
+  | None, Some y -> Some y
+  | Some x, None -> Some x
+  | Some x, Some y -> Some (min x y)
+
+let split_top builder top node =
+  let get_node = get_node builder in
+  match node with
+  | True | False -> (node, node)
+  | Branch (v, low, high) ->
+      if v = top then (get_node low, get_node high) else (node, node)
+
+(* constructors *)
+
 let leaf_true = True
 let leaf_false = False
 
@@ -62,34 +80,17 @@ let terminal_value = function
 let value_node = function true -> True | false -> False
 
 let rec apply binary_op builder lhs rhs =
-  let get_node = get_node builder in
-  let make_branch = make_branch builder in
   let ( @ ) = apply binary_op builder in
-  match (lhs, rhs) with
-  (* leaf nodes *)
-  | False, False | False, True | True, False | True, True ->
+  let make_branch, split_top = (make_branch builder, split_top builder) in
+  match min_opt (top_var lhs, top_var rhs) with
+  | None ->
+      (* two leaf nodes *)
       let x, y = (terminal_value lhs, terminal_value rhs) in
       binary_op x y |> value_node
-  (* LHS is leaf *)
-  | True, Branch (var, low, high) | False, Branch (var, low, high) ->
-      let low, high = (get_node low, get_node high) in
-      let low, high = (lhs @ low, lhs @ high) in
-      make_branch var low high
-  (* RHS is leaf *)
-  | Branch (var, low, high), True | Branch (var, low, high), False ->
-      let low, high = (get_node low, get_node high) in
-      let low, high = (low @ rhs, high @ rhs) in
-      make_branch var low high
-  (* Non-terminal node on both sides *)
-  | Branch (x, low_x, high_x), Branch (y, low_y, high_y) ->
-      let low_x, high_x, low_y, high_y =
-        (get_node low_x, get_node high_x, get_node low_y, get_node high_y)
-      in
-      let var, low, high =
-        if x < y then (x, low_x @ rhs, high_x @ rhs)
-        else if x > y then (y, lhs @ low_y, rhs @ high_y)
-        else (x, low_x @ low_y, high_x @ high_y)
-      in
+  | Some var ->
+      (* at least one of lhs/rhs is an internal node *)
+      let lhs, rhs = (split_top var lhs, split_top var rhs) in
+      let low, high = (fst lhs @ fst rhs, snd lhs @ snd rhs) in
       make_branch var low high
 
 (* bdd manipulation functions *)
@@ -117,16 +118,17 @@ let if_then_else builder cond then_ else_ =
   l || r
 
 (* compute f[g/x] substitute the occurance of x with g *)
-let subs builder f x g =
-  let ite, var, get_node =
-    (if_then_else builder, var builder, get_node builder)
+let rec subs builder f x g =
+  let subs, ite, var, get_node =
+    (subs builder, if_then_else builder, var builder, get_node builder)
   in
   match f with
   | True | False -> f
+  | Branch (y, _, _) when x = y -> g
   | Branch (y, low, high) ->
-      let low, high = (get_node low, get_node high) in
-      let br = if x = y then g else var y in
-      ite br high low
+      let low', high' = (get_node low, get_node high) in
+      let low', high' = (subs low' x g, subs high' x g) in
+      ite (var y) high' low'
 
 (* quantifiers *)
 
