@@ -124,11 +124,16 @@ let rec subs builder f x g =
   in
   match f with
   | True | False -> f
-  | Branch (y, _, _) when x = y -> g
   | Branch (y, low, high) ->
-      let low', high' = (get_node low, get_node high) in
-      let low', high' = (subs low' x g, subs high' x g) in
-      ite (var y) high' low'
+      if y < x then
+        (* recursively apply variable substitution in the sub-trees *)
+        let low', high' = (get_node low, get_node high) in
+        let low', high' = (subs low' x g, subs high' x g) in
+        ite (var y) high' low'
+      else if y > x then f (* f dose not contain x *)
+      else
+        let low', high' = (get_node low, get_node high) in
+        ite g high' low'
 
 (* quantifiers *)
 
@@ -150,22 +155,21 @@ let truth_table builder lim node =
   let tt = Array.make (1 lsl lim) false in
   let get_node = get_node builder in
   let rec dfs lvl acc node =
-    let lvl', acc_f, acc_t = (lvl + 1, acc, acc + (1 lsl lvl)) in
-    if lvl < lim then
+    if lvl = lim then tt.(acc) <- terminal_value node
+    else
+      let lvl', acc' = (lvl + 1, acc + (1 lsl lvl)) in
       match node with
       | True | False ->
-          dfs lvl' acc_f node;
-          dfs lvl' acc_t node
+          dfs lvl' acc node;
+          dfs lvl' acc' node
       | Branch (y, low, high) ->
           let low', high' = (get_node low, get_node high) in
           if y = lvl then (
-            dfs lvl' acc_f low';
-            dfs lvl' acc_t high')
+            dfs lvl' acc low';
+            dfs lvl' acc' high')
           else (
-            dfs lvl' acc_f node;
-            dfs lvl' acc_t node)
-    else tt.(acc) <- terminal_value node
+            dfs lvl' acc node;
+            dfs lvl' acc' node)
   in
   dfs 0 0 node;
   tt
-(* TODO: find the truth table *)
