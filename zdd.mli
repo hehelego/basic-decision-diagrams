@@ -14,7 +14,7 @@ val unit : node
 val singleton : t -> var_id -> node
 (** the set family { {x} } *)
 
-val from_list : t -> var_id list -> node
+val single_set : t -> var_id list -> node
 (** the set family { s } *)
 
 val insert : t -> var_id -> node -> node
@@ -36,7 +36,7 @@ type set_op = t -> node -> node -> node
 val union : set_op
 (** [union f g] is the set family {{s: (s in f) or (s in g)}} *)
 
-val intersect : set_op
+val inter : set_op
 (** [intersect f g] is the set family {s: (s in f) and (s in g)} *)
 
 val diff : set_op

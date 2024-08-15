@@ -53,13 +53,13 @@ let make_partition builder var low high =
     add_node builder node;
     node
 
-let from_list builder vars =
-  let vars = List.sort compare vars in
+let single_set builder vars =
+  let vars = List.sort_uniq compare vars in
   let rec make = function
-    | [] -> Bottom
+    | [] -> Top
     | x :: xs ->
         let rest = make xs in
-        make_partition builder x rest Top
+        make_partition builder x Bottom rest
   in
   make vars
 
@@ -122,7 +122,7 @@ let union builder =
   in
   ( ++ )
 
-let intersect builder =
+let inter builder =
   let get_node, make_partition = (get_node builder, make_partition builder) in
   let filter0, filter1 = (filter0 builder, filter1 builder) in
   let rec ( ** ) lhs rhs =
@@ -131,19 +131,19 @@ let intersect builder =
     | Bottom, _ | _, Bottom -> Bottom
     | Top, Top -> Top
     | l, r when l = r -> lhs
-    | Top, Partition (x, low, high) | Partition (x, low, high), Top ->
-        let low', high' = (get_node low, get_node high) in
-        let low' = low' ** Top in
-        make_partition x low' high'
+    | Top, Partition (_, low, _) | Partition (_, low, _), Top ->
+        let low' = get_node low in
+        low' ** Top
     | Partition (x, low_x, high_x), Partition (y, low_y, high_y) ->
         let low_x, high_x, low_y, high_y =
           (get_node low_x, get_node high_x, get_node low_y, get_node high_y)
         in
-        let var, low, high =
-          if x < y then (x, low_x ** filter0 x rhs, high_x ** filter1 x rhs)
-          else if x > y then (y, filter0 y lhs ** low_y, filter1 y rhs ** high_y)
-          else (x, low_x ** low_y, high_x ** high_y)
+        let low, high =
+          if x < y then (low_x ** filter0 x rhs, high_x ** filter1 x rhs)
+          else if x > y then (filter0 y lhs ** low_y, filter1 y lhs ** high_y)
+          else (low_x ** low_y, high_x ** high_y)
         in
+        let var = min x y in
         make_partition var low high
   in
   ( ** )
@@ -156,7 +156,7 @@ let diff builder =
     (* base case *)
     | Bottom, _ -> Bottom
     | l, Bottom -> l
-    | Top, Top -> Top
+    | Top, Top -> Bottom
     | l, r when l = r -> Bottom
     | Top, Partition (_, low, _) ->
         let low' = get_node low in
@@ -193,19 +193,17 @@ let insert builder x =
     | Bottom -> Bottom
     | Top -> singleton x
     | Partition (y, low, high) ->
-        if x > y then
+        if x < y then make_partition x Bottom node
+        else if x > y then
           let low', high' = (get_node low, get_node high) in
           let low', high' = (add low', add high') in
           make_partition y low' high'
-        else if x < y then
-          let low', high' = (get_node low, get_node high) in
-          make_partition x low' high'
         else
           (* x = y *)
           let low', high' = (get_node low, get_node high) in
           let low' = add low' in
-          let node = make_partition x Bottom high' in
-          union low' node
+          let node' = make_partition x Bottom high' in
+          union low' node'
   in
   add
 
@@ -216,13 +214,15 @@ let remove builder x =
     | Bottom -> Bottom
     | Top -> Top
     | Partition (y, low, high) ->
-        if x > y then node
-        else if x < y then
+        if x < y then node
+        else if x > y then
           let low', high' = (get_node low, get_node high) in
           let low', high' = (rem low', rem high') in
           make_partition y low' high'
-        else (* x = y *)
-          get_node low
+        else
+          (* x = y *)
+          let low', high' = (get_node low, get_node high) in
+          union builder low' high'
   in
   rem
 
